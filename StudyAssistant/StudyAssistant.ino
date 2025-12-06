@@ -1,180 +1,283 @@
 /*
-  Smart Study Assistant
-  - Monitors distance, sound, light
-  - Tracks study duration when distance indicates attention
-  - Changes WS2812B color to yellow if too close
-  - Increases light if too dark
-  - Suggests study time based on brightness, sound, distance
-  - Displays data and suggestions on OLED and Serial
+============================================================
+ Focused Study Feedback Station - Final System Description
+============================================================
 
-  Hardware:
-    UNO + XFP1116-07AY OLED (I2C)
-    VEML7700 light sensor
-    HC-SR04 distance sensor
-    Sound Sensor v1.6
-    WS2812B
+This system is a smart desk assistant designed to monitor:
+- User presence
+- Study time
+- Environmental brightness
+- Environmental noise
+- Sitting distance
+
+It provides:
+- Real-time feedback on an RGB LCD
+- Status indication using RGB LEDs
+- Automatic environment light ON/OFF
+- Intelligent break reminder
+
+------------------------------------------------------------
+LCD DISPLAY LAYOUT (2 PAGES ONLY)
+------------------------------------------------------------
+Page 0:
+- Total focus time today (minutes)
+- Recommended continuous study time (fixed: 45 min)
+
+Page 1:
+- Brightness (Lux)
+- Noise level (Analog value)
+
+------------------------------------------------------------
+STATUS RGB LED LOGIC (LOW BRIGHTNESS)
+------------------------------------------------------------
+- RED    : Environment problem detected
+- GREEN  : User present & environment OK
+- YELLOW : User away from desk
+
+------------------------------------------------------------
+ENVIRONMENT LIGHT LOGIC (ON/OFF ONLY)
+------------------------------------------------------------
+- Light ON  : If brightness is too low
+- Light OFF : If brightness is sufficient
+
+------------------------------------------------------------
+SMART BREAK REMINDER
+------------------------------------------------------------
+Break warning is triggered ONLY if:
+1) Continuous focus time > 45 minutes
+AND
+2) Any environment problem exists
+============================================================
 */
 
 #include <Wire.h>
-#include <U8g2lib.h>
 #include <Adafruit_VEML7700.h>
 #include <Adafruit_NeoPixel.h>
+#include "rgb_lcd.h"
 
-// ---------- OLED ----------
-U8G2_SSD1306_128X64_NONAME_F_HW_I2C oled(U8G2_R0, U8X8_PIN_NONE);
+// ================= HARDWARE =================
+#define TRIG_PIN 8
+#define ECHO_PIN 9
+#define SOUND_PIN A0
 
-// ---------- VEML7700 ----------
+#define ENV_LED_PIN 6
+#define STATUS_LED_PIN 7
+#define ENV_LED_COUNT 8
+#define STATUS_LED_COUNT 8
+
+// ================= OBJECTS =================
 Adafruit_VEML7700 veml;
+Adafruit_NeoPixel envStrip(ENV_LED_COUNT, ENV_LED_PIN, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel statusStrip(STATUS_LED_COUNT, STATUS_LED_PIN, NEO_GRB + NEO_KHZ800);
+rgb_lcd lcd;
 
-// ---------- HC-SR04 ----------
-const int TRIG_PIN = 2;
-const int ECHO_PIN = 3;
+// ================= THRESHOLDS =================
+int PRESENT_DISTANCE = 60;
+int TOO_CLOSE_DISTANCE = 25;
+int MIN_LUX = 80;
+int MAX_NOISE = 600;
 
-// ---------- Sound Sensor ----------
-const int SOUND_PIN = A0;
+unsigned long FOCUS_LIMIT = 45UL * 60UL * 1000UL;
 
-// ---------- WS2812B ----------
-const int LED_PIN = 6;
-const int NUM_LEDS = 8;
-Adafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800);
+// ================= STATUS =================
+bool isPresent = false;
+bool breakWarning = false;
 
-// ---------- Study tracking ----------
-bool studying = false;
-unsigned long studyStart = 0;     // session start
-unsigned long sessionTime = 0;    // current session duration in ms
-unsigned long totalStudyTime = 0; // total study duration in ms
+unsigned long focusStartTime = 0;
+unsigned long totalFocusTime = 0;
 
-// ---------- Helper ----------
-bool vemlOK = false;
-unsigned long lastUpdate = 0;
+// ================= LCD PAGE CONTROL =================
+unsigned long lastLcdUpdate = 0;
+int lcdPage = 0;
 
-void setup() {
-  Serial.begin(115200);
-  while (!Serial) {}
-
-  // OLED init
-  oled.begin();
-  oled.clearBuffer();
-  oled.setFont(u8g2_font_6x12_tf);
-  oled.drawStr(0, 12, "Smart Study Init");
-  oled.sendBuffer();
-
-  // VEML7700 init
-  if (!veml.begin()) {
-    Serial.println("VEML7700 not found!");
-    vemlOK = false;
-  } else {
-    vemlOK = true;
-    veml.setGain(VEML7700_GAIN_1);
-    veml.setIntegrationTime(VEML7700_IT_100MS);
-  }
-
-  // HC-SR04
-  pinMode(TRIG_PIN, OUTPUT);
-  pinMode(ECHO_PIN, INPUT);
-
-  // WS2812B
-  strip.begin();
-  strip.show();
-}
-
-void loop() {
-  // Read sensors
-  float distance = readDistanceCM();
-  float lux = vemlOK ? veml.readLux() : 0.0;
-  int soundRaw = analogRead(SOUND_PIN);
-
-  // Study detection based on distance (e.g., >30cm)
-  if (distance > 30 && distance < 100) {
-    if (!studying) {
-      studying = true;
-      studyStart = millis();
-    }
-    sessionTime = millis() - studyStart;
-  } else {
-    if (studying) {
-      totalStudyTime += sessionTime;
-      sessionTime = 0;
-      studying = false;
-    }
-  }
-
-  // Calculate suggested study time (simple heuristic)
-  // Base: 50 min session, modified by conditions
-  float comfortScore = 1.0; // 1.0 = ideal
-  if (lux < 150) comfortScore *= 0.8;      // too dark
-  if (soundRaw > 600) comfortScore *= 0.9; // noisy
-  if (distance < 30) comfortScore *= 0.7;  // too close
-
-  float suggestedMinutes = 50 * comfortScore;
-
-  // Update LEDs
-  updateLEDs(distance, lux, soundRaw);
-
-  // Update OLED
-  drawOLED(distance, lux, soundRaw, suggestedMinutes);
-
-  // Serial output
-  if (millis() - lastUpdate > 500) {
-    lastUpdate = millis();
-    Serial.print("Distance(cm): "); Serial.print(distance);
-    Serial.print("  Lux: "); Serial.print(lux);
-    Serial.print("  Sound: "); Serial.print(soundRaw);
-    Serial.print("  Suggested(min): "); Serial.print(suggestedMinutes);
-    Serial.print("  Session(s): "); Serial.print(sessionTime/1000);
-    Serial.print("  Total(s): "); Serial.println(totalStudyTime/1000);
-  }
-
-  delay(100);
-}
-
-// ----------------- Functions -----------------
-float readDistanceCM() {
+// ================= DISTANCE FUNCTION =================
+long getDistanceCM() {
   digitalWrite(TRIG_PIN, LOW);
   delayMicroseconds(2);
   digitalWrite(TRIG_PIN, HIGH);
   delayMicroseconds(10);
   digitalWrite(TRIG_PIN, LOW);
-
   long duration = pulseIn(ECHO_PIN, HIGH, 30000);
-  if (duration == 0) return -1;
-  return duration / 58.0;
+  return duration * 0.034 / 2;
 }
 
-void updateLEDs(float distance, float lux, int soundRaw) {
-  uint32_t color;
+// ================= STATUS LED (LOW BRIGHTNESS) =================
+void setStatusColor(int r, int g, int b) {
+  for (int i = 0; i < STATUS_LED_COUNT; i++) {
+    statusStrip.setPixelColor(i, statusStrip.Color(r, g, b));
+  }
+  statusStrip.show();
+}
 
-  if (distance < 0) {
-    color = strip.Color(50, 0, 50); // error
-  } else if (distance < 30) {
-    color = strip.Color(200, 200, 0); // yellow for too close
+// ================= ENVIRONMENT LIGHT (ON / OFF ONLY) =================
+void setEnvironmentLight(bool state) {
+  if (state) {
+    for (int i = 0; i < ENV_LED_COUNT; i++) {
+      envStrip.setPixelColor(i, envStrip.Color(60, 60, 60));
+    }
   } else {
-    // Adjust brightness by light
-    int brightness = constrain(map(lux, 0, 400, 50, 255), 50, 255);
-    color = strip.Color(0, brightness, 0); // green
+    for (int i = 0; i < ENV_LED_COUNT; i++) {
+      envStrip.setPixelColor(i, 0);
+    }
   }
-
-  for (int i=0; i<NUM_LEDS; i++) {
-    strip.setPixelColor(i, color);
-  }
-  strip.show();
+  envStrip.show();
 }
 
-void drawOLED(float distance, float lux, int soundRaw, float suggestedMinutes) {
-  oled.clearBuffer();
-  oled.setFont(u8g2_font_6x12_tf);
-  char buf[32];
+// ================= SETUP =================
+void setup() {
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
 
-  oled.drawStr(0, 12, "Smart Study");
+  Serial.begin(9600);
+  Serial.println("===== Focused Study Feedback Station START =====");
 
-  snprintf(buf, sizeof(buf), "Dist: %.0f cm", distance);
-  oled.drawStr(0, 26, buf);
+  envStrip.begin();
+  statusStrip.begin();
 
-  snprintf(buf, sizeof(buf), "Lux: %.0f  Sound: %d", lux, soundRaw);
-  oled.drawStr(0, 40, buf);
+  lcd.begin(16, 2);
+  lcd.setRGB(0, 50, 0);
+  lcd.clear();
 
-  snprintf(buf, sizeof(buf), "Suggested: %.0f min", suggestedMinutes);
-  oled.drawStr(0, 54, buf);
+  if (!veml.begin()) {
+    lcd.print("VEML ERROR");
+    Serial.println("ERROR: VEML7700 NOT DETECTED!");
+    while (1);
+  }
 
-  oled.sendBuffer();
+  lcd.setCursor(0, 0);
+  lcd.print("Focused Study");
+  lcd.setCursor(0, 1);
+  lcd.print("System Ready");
+
+  Serial.println("System Ready.");
+  delay(2000);
+  lcd.clear();
+}
+
+// ================= LOOP =================
+void loop() {
+  long distance = getDistanceCM();
+  int noiseValue = analogRead(SOUND_PIN);
+  float lux = veml.readLux();
+
+  // ===== Presence Detection =====
+  if (distance < PRESENT_DISTANCE) {
+    if (!isPresent) {
+      isPresent = true;
+      focusStartTime = millis();
+      Serial.println("EVENT: User Detected -> Focus Started");
+    }
+  } else {
+    if (isPresent) {
+      totalFocusTime += millis() - focusStartTime;
+      isPresent = false;
+      Serial.println("EVENT: User Left -> Focus Paused");
+    }
+  }
+
+  unsigned long currentFocusTime = isPresent ? (millis() - focusStartTime) : 0;
+  unsigned long todayFocusTime = totalFocusTime + currentFocusTime;
+
+  // ===== Environment Analysis =====
+  bool tooClose = distance < TOO_CLOSE_DISTANCE;
+  bool tooDark = lux < MIN_LUX;
+  bool tooNoisy = noiseValue > MAX_NOISE;
+
+  // ===== Status RGB LED (DIMMED) =====
+  String ledState = "YELLOW (AWAY)";
+  if (tooClose || tooDark || tooNoisy) {
+    setStatusColor(50, 0, 0);
+    lcd.setRGB(50, 0, 0);
+    ledState = "RED (PROBLEM)";
+  } 
+  else if (isPresent) {
+    setStatusColor(0, 50, 0);
+    lcd.setRGB(0, 50, 0);
+    ledState = "GREEN (GOOD)";
+  } 
+  else {
+    setStatusColor(50, 50, 0);
+    lcd.setRGB(50, 50, 0);
+  }
+
+  // ===== Environment Light ON/OFF =====
+  bool envLightState = lux < MIN_LUX;
+  setEnvironmentLight(envLightState);
+
+  // ===== Smart Break Logic =====
+  breakWarning = (currentFocusTime > FOCUS_LIMIT) && (tooClose || tooDark || tooNoisy);
+
+  // ===== LCD Page Switch (2 Pages) =====
+  if (millis() - lastLcdUpdate > 2000) {
+    lastLcdUpdate = millis();
+    lcdPage = (lcdPage + 1) % 2;
+    lcd.clear();
+  }
+
+  if (breakWarning) {
+    lcd.setCursor(0, 0);
+    lcd.print(" TAKE A BREAK ");
+    lcd.setCursor(0, 1);
+    lcd.print(" REST YOUR EYES ");
+  } 
+  else {
+    if (lcdPage == 0) {
+      lcd.setCursor(0, 0);
+      lcd.print("Total:");
+      lcd.print(todayFocusTime / 60000);
+      lcd.print("m");
+
+      lcd.setCursor(0, 1);
+      lcd.print("Recommend:45m");
+    } 
+    else if (lcdPage == 1) {
+      lcd.setCursor(0, 0);
+      lcd.print("Lux:");
+      lcd.print((int)lux);
+
+      lcd.setCursor(0, 1);
+      lcd.print("Noise:");
+      lcd.print(noiseValue);
+    }
+  }
+
+  // ================= SERIAL DEBUG OUTPUT =================
+  Serial.println("------------------------------------------------");
+  Serial.print("Distance: "); Serial.print(distance); Serial.println(" cm");
+  Serial.print("Brightness: "); Serial.print(lux); Serial.println(" lux");
+  Serial.print("Noise: "); Serial.println(noiseValue);
+
+  Serial.print("User Present: ");
+  Serial.println(isPresent ? "YES" : "NO");
+
+  Serial.print("Too Close: ");
+  Serial.println(tooClose ? "YES" : "NO");
+
+  Serial.print("Too Dark: ");
+  Serial.println(tooDark ? "YES" : "NO");
+
+  Serial.print("Too Noisy: ");
+  Serial.println(tooNoisy ? "YES" : "NO");
+
+  Serial.print("Current Focus Time: ");
+  Serial.print(currentFocusTime / 60000);
+  Serial.println(" min");
+
+  Serial.print("Today's Total Focus: ");
+  Serial.print(todayFocusTime / 60000);
+  Serial.println(" min");
+
+  Serial.print("Break Warning: ");
+  Serial.println(breakWarning ? "YES" : "NO");
+
+  Serial.print("LCD Page: ");
+  Serial.println(lcdPage);
+
+  Serial.print("Status LED: ");
+  Serial.println(ledState);
+
+  Serial.print("Environment Light: ");
+  Serial.println(envLightState ? "ON" : "OFF");
+
+  delay(500);
 }
