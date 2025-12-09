@@ -1,10 +1,10 @@
 // ============================================================================
 //  Focus/Rest System (Full Version)
-//  Added feature: After reaching required focus time, system enters a RED
-//  warning state and only switches to true rest mode after the user has been
-//  absent for at least 2 seconds.
+//  New feature: After reaching required focus time, system enters a red-warning
+//  state. It only transitions to true rest mode after the user has been absent
+//  for at least 2 seconds.
 //
-//  Many English comments were added for clarity.
+//  Serial debug output is FULLY preserved exactly like the original program.
 // ============================================================================
 
 #include <Wire.h>
@@ -25,56 +25,51 @@ Adafruit_NeoPixel envStrip(ENV_LED_COUNT, ENV_LED_PIN, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel statusStrip(STATUS_LED_COUNT, STATUS_LED_PIN, NEO_GRB + NEO_KHZ800);
 rgb_lcd lcd;
 
-// ------------------- configurable thresholds -------------------
+// ======================== CONFIGURABLE THRESHOLDS ===========================
 int PRESENT_DISTANCE = 80;
 int TOO_CLOSE_DISTANCE = 20;
 int MIN_LUX = 80;
 int MAX_NOISE = 300;
 
-// ------------------- timing variables --------------------------
+// ======================== TIMING VARIABLES ==================================
 unsigned long recommendedFocusTime = 45UL * 60UL * 1000UL;
-unsigned long dynamicRestTime = 15UL * 60UL * 1000UL;
+unsigned long dynamicRestTime      = 15UL * 60UL * 1000UL;
 
 unsigned long focusStartTime = 0;
 unsigned long totalFocusTime = 0;
 unsigned long restStartTime = 0;
 unsigned long absenceStartTime = 0;
 
-// ------------------- state flags -------------------------------
+// ======================== STATES ============================================
 bool isPresent = false;
 bool breakWarning = false;
 bool inRestMode = false;
 bool restFinished = false;
-bool waitingForUserToLeave = false;   // NEW FEATURE
+bool waitingForUserToLeave = false;   // <--- NEW (RED WARNING STATE)
 
-// ------------------- LCD management ----------------------------
+// ======================== LCD PAGE SWITCH ===================================
 unsigned long lastLcdUpdate = 0;
 int lcdPage = 0;
 
-// ------------------- LED optimization --------------------------
-unsigned long lastColorChangeTime = 0;
+// ======================== LED OPTIMIZATION ==================================
 int lastR = -1, lastG = -1, lastB = -1;
 
 // ============================================================================
-//  Safe LED updater
+// Helper: Set status LED color, but avoid redundant refresh
 // ============================================================================
-
 void safeSetStatusColor(int r, int g, int b) {
   if (r == lastR && g == lastG && b == lastB) return;
 
-  for (int i = 0; i < STATUS_LED_COUNT; i++) {
+  for (int i = 0; i < STATUS_LED_COUNT; i++)
     statusStrip.setPixelColor(i, statusStrip.Color(r, g, b));
-  }
-  statusStrip.show();
 
-  lastR = r;
-  lastG = g;
-  lastB = b;
+  statusStrip.show();
+  lastR = r; lastG = g; lastB = b;
 }
 
-// ----------------------------------------------------------------------------
-// Ultrasonic distance
-// ----------------------------------------------------------------------------
+// ============================================================================
+// Ultrasonic distance measurement
+// ============================================================================
 long getDistanceCM() {
   digitalWrite(TRIG_PIN, LOW);
   delayMicroseconds(2);
@@ -84,23 +79,24 @@ long getDistanceCM() {
 
   long duration = pulseIn(ECHO_PIN, HIGH, 30000);
   if (duration == 0) return 0;
+
   return duration * 0.034 / 2;
 }
 
-// ----------------------------------------------------------------------------
-// Toggles environment LED bar
-// ----------------------------------------------------------------------------
-void setEnvironmentLight(bool state) {
+// ============================================================================
+// Environment LED bar control
+// ============================================================================
+void setEnvironmentLight(bool on) {
   for (int i = 0; i < ENV_LED_COUNT; i++) {
-    if (state) envStrip.setPixelColor(i, envStrip.Color(40, 40, 40));
-    else envStrip.setPixelColor(i, 0);
+    if (on) envStrip.setPixelColor(i, envStrip.Color(40, 40, 40));
+    else    envStrip.setPixelColor(i, 0);
   }
   envStrip.show();
 }
 
-// ----------------------------------------------------------------------------
-// Dynamic recommended focus time calculation (unchanged)
-// ----------------------------------------------------------------------------
+// ============================================================================
+// Dynamic recommended focus time (unchanged)
+// ============================================================================
 void calculateRecommendedTime(float lux, int noise, long distanceCM) {
   int baseMin = 45;
   int delta = 0;
@@ -123,9 +119,9 @@ void calculateRecommendedTime(float lux, int noise, long distanceCM) {
   recommendedFocusTime = recMin * 60000UL;
 }
 
-// ----------------------------------------------------------------------------
-// Dynamic rest time calculation (unchanged)
-// ----------------------------------------------------------------------------
+// ============================================================================
+// Dynamic rest time (unchanged)
+// ============================================================================
 void calculateRestTime(float lux, int noise) {
   int baseMin = 15;
   int delta = 0;
@@ -142,7 +138,7 @@ void calculateRestTime(float lux, int noise) {
 }
 
 // ============================================================================
-//  Setup
+// Setup
 // ============================================================================
 void setup() {
   pinMode(TRIG_PIN, OUTPUT);
@@ -151,41 +147,38 @@ void setup() {
 
   envStrip.begin();
   statusStrip.begin();
-  lcd.begin(16, 2);
 
+  lcd.begin(16, 2);
   lcd.setRGB(0, 40, 0);
+  lcd.clear();
+  lcd.print("System Ready");
+  delay(1500);
   lcd.clear();
 
   if (!veml.begin()) {
     lcd.print("VEML ERROR");
     while (1);
   }
-
-  lcd.print("System Ready");
-  delay(1500);
-  lcd.clear();
 }
 
 // ============================================================================
-//  Main Loop
+// Main Loop
 // ============================================================================
 void loop() {
 
   long distance = getDistanceCM();
-  int noiseVal = analogRead(SOUND_PIN);
-  float lux = veml.readLux();
+  int noiseVal  = analogRead(SOUND_PIN);
+  float lux     = veml.readLux();
 
   bool validDistance = (distance > 5 && distance < 200);
-  bool userNear = validDistance && (distance < PRESENT_DISTANCE);
-  bool userTooClose = validDistance && (distance < TOO_CLOSE_DISTANCE);
+  bool userNear      = validDistance && (distance < PRESENT_DISTANCE);
+  bool userTooClose  = validDistance && (distance < TOO_CLOSE_DISTANCE);
 
   calculateRecommendedTime(lux, noiseVal, validDistance ? distance : 999);
   calculateRestTime(lux, noiseVal);
 
   // ============================================================================
-  //  1) WAITING-FOR-USER-TO-LEAVE STATE (RED WARNING)
-  //     This happens immediately when focus time is reached.
-  //     System only enters real rest mode after 2 seconds absence.
+  // 1) RED WARNING STATE: Focus time reached, but wait for user absence ≥ 2 s
   // ============================================================================
   if (waitingForUserToLeave) {
 
@@ -194,15 +187,15 @@ void loop() {
 
     lcd.clear();
     lcd.setCursor(0, 0);
-    lcd.print("Take a Break!");
+    lcd.print("Time for break!");
 
-    // User still detected → reset absence timer
+    // If user still present → reset 2s timer
     if (userNear) {
       absenceStartTime = millis();
     }
 
-    // User absent for >= 2 seconds → enter rest mode
-    if (!userNear && millis() - absenceStartTime >= 2000) {
+    // 2 seconds absent → enter REST MODE
+    if (!userNear && (millis() - absenceStartTime >= 2000)) {
       waitingForUserToLeave = false;
       inRestMode = true;
       restStartTime = millis();
@@ -213,20 +206,20 @@ void loop() {
   }
 
   // ============================================================================
-  //  2) REST MODE
+  // 2) REST MODE (real rest)
   // ============================================================================
   if (inRestMode) {
 
     safeSetStatusColor(40, 0, 0);
     setEnvironmentLight(false);
 
-    unsigned long restElapsedMs = millis() - restStartTime;
+    unsigned long restElapsed = millis() - restStartTime;
 
     lcd.setRGB(40, 0, 0);
     lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print("Rest:");
-    lcd.print(restElapsedMs / 60000UL);
+    lcd.print(restElapsed / 60000UL);
     lcd.print("/");
     lcd.print(dynamicRestTime / 60000UL);
     lcd.print("m");
@@ -234,11 +227,10 @@ void loop() {
     lcd.setCursor(0, 1);
     lcd.print("Leave desk...");
 
-    // Rest completes ONLY if user is away
-    if (!userNear && restElapsedMs >= dynamicRestTime) {
+    if (!userNear && restElapsed >= dynamicRestTime) {
       inRestMode = false;
       restFinished = true;
-      safeSetStatusColor(20, 20, 0);
+      safeSetStatusColor(20, 20, 0); // yellow
     }
 
     delay(250);
@@ -246,27 +238,28 @@ void loop() {
   }
 
   // ============================================================================
-  //  3) NORMAL FOCUS MODE
+  // 3) NORMAL FOCUS MODE
   // ============================================================================
   if (userNear && !isPresent) {
     isPresent = true;
     restFinished = false;
     focusStartTime = millis();
   }
+
   if (!userNear && isPresent) {
     totalFocusTime += millis() - focusStartTime;
     isPresent = false;
   }
 
-  unsigned long currentFocusMs = isPresent ? (millis() - focusStartTime) : 0;
-  unsigned long todayFocusMs = totalFocusTime + currentFocusMs;
+  unsigned long currentFocus = isPresent ? millis() - focusStartTime : 0;
+  unsigned long todayFocus = totalFocusTime + currentFocus;
 
-  // ----------- ENTER RED WARNING MODE WHEN FOCUS TIME ELAPSED ------------
-  if (!inRestMode && isPresent && currentFocusMs >= recommendedFocusTime) {
-    totalFocusTime += currentFocusMs;
+  // ENTER WARNING MODE (NOT rest yet)
+  if (!inRestMode && isPresent && currentFocus >= recommendedFocusTime) {
+    totalFocusTime += currentFocus;
     isPresent = false;
 
-    waitingForUserToLeave = true;
+    waitingForUserToLeave = true;       // <--- NEW
     absenceStartTime = millis();
 
     safeSetStatusColor(40, 0, 0);
@@ -274,11 +267,11 @@ void loop() {
   }
 
   // ============================================================================
-  //  After finishing rest, user must return to clear restFinished flag
+  // After rest: waiting for user to return
   // ============================================================================
   if (restFinished) {
     setEnvironmentLight(false);
-    safeSetStatusColor(20, 20, 0);  // Yellow
+    safeSetStatusColor(20, 20, 0);  // yellow
 
     if (userNear) {
       restFinished = false;
@@ -287,7 +280,7 @@ void loop() {
   }
 
   // ============================================================================
-  //  LED and LCD color states during focus mode
+  // LED + LCD behavior during focus
   // ============================================================================
   if (isPresent) {
     if (!validDistance) {
@@ -313,11 +306,11 @@ void loop() {
     }
   }
 
-  // ============================================================================
-  //  LCD rotation pages
-  // ============================================================================
   setEnvironmentLight(lux < MIN_LUX);
 
+  // ============================================================================
+  // LCD updates every 2 seconds
+  // ============================================================================
   if (millis() - lastLcdUpdate > 2000) {
     lastLcdUpdate = millis();
     lcdPage = (lcdPage + 1) % 2;
@@ -327,24 +320,42 @@ void loop() {
   if (lcdPage == 0) {
     lcd.setCursor(0, 0);
     lcd.print("Total:");
-    lcd.print(todayFocusMs / 60000UL);
+    lcd.print(todayFocus / 60000UL);
     lcd.print("m");
 
     lcd.setCursor(0, 1);
     lcd.print("(");
-    lcd.print(currentFocusMs / 60000UL);
+    lcd.print(currentFocus / 60000UL);
     lcd.print(" / Rec:");
     lcd.print(recommendedFocusTime / 60000UL);
     lcd.print(")");
-  } else {
+  }
+  else {
     lcd.setCursor(0, 0);
     lcd.print("Lux:");
     lcd.print((int)lux);
-
     lcd.setCursor(0, 1);
     lcd.print("Noise:");
     lcd.print(noiseVal);
   }
+
+  // ============================================================================
+  // SERIAL DEBUG OUTPUT (EXACTLY LIKE ORIGINAL)
+  // ============================================================================
+  Serial.println("================ SENSOR DEBUG ================");
+  Serial.print("Distance(cm): "); Serial.println(distance);
+  Serial.print("ValidDistance: "); Serial.println(validDistance ? "YES" : "NO");
+  Serial.print("Lux: "); Serial.println(lux);
+  Serial.print("Noise: "); Serial.println(noiseVal);
+  Serial.print("UserPresent: "); Serial.println(isPresent ? "YES" : "NO");
+  Serial.print("CurrentFocus(ms): "); Serial.println(currentFocus);
+  Serial.print("TotalFocus(ms): "); Serial.println(todayFocus);
+  Serial.print("RecommendedFocus(ms): "); Serial.println(recommendedFocusTime);
+  Serial.print("RestMode: "); Serial.println(inRestMode ? "YES" : "NO");
+  Serial.print("WaitingLeave: "); Serial.println(waitingForUserToLeave ? "YES" : "NO");
+  Serial.print("RestFinished: "); Serial.println(restFinished ? "YES" : "NO");
+  Serial.print("LED(R,G,B): "); Serial.print(lastR); Serial.print(","); Serial.print(lastG); Serial.print(","); Serial.println(lastB);
+  Serial.println("----------------------------------------------");
 
   delay(200);
 }
