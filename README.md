@@ -1,87 +1,101 @@
 # Study Assistant
 
-The **Study Assistant** is a smart, sensor-based desktop companion designed to improve learning efficiency and promote healthier study habits.  
-By monitoring environmental and behavioral factors—such as brightness, noise, distance, and presence, it provides real-time feedback through an RGB LCD screen and LED indicators.  
-The device encourages proper posture, ideal study intervals, and timely breaks.
+The **Study Assistant** is a smart, sensor-driven desktop companion designed to improve study efficiency and encourage healthier learning habits. It monitors brightness, noise, distance, and user presence, then provides real-time feedback through an RGB LCD and multi-color LED indicators.
+
+![Concept Sketch](Documents/prototype.jpg)
 
 ---
 
 ## 📌 Overview
 
-This project integrates several sensing modules, a feedback system, and a 3D-printed enclosure.  
-Key capabilities include:
+The Study Assistant integrates several sensors, a dynamic feedback system, and a custom 3D-printed enclosure. It automatically tracks focus time, recommends study durations, and enforces rest intervals based on environmental quality.
 
-- Real-time environmental monitoring (lux & noise)
-- Ultrasonic-based user presence and distance measurement
-- Dynamic recommended study duration
-- Dynamic rest duration based on environment quality
-- Automatic light control
-- Multi-state LED feedback (posture/noise/rest)
-- LCD visual interface with rotating pages
-- Smart Rest Mode with energy-saving behavior
+### Core Capabilities
+
+* Real-time environmental monitoring (lux + noise)
+* Ultrasonic-based presence and distance measurement
+* Dynamic recommended study duration
+* Dynamic rest duration
+* Automatic environment light control
+* Multi-state LED status feedback
+* LCD dual-page interface
+* Smart Rest Mode with power saving
+* Refined behavior when distance is invalid (LEDs turn off unless noisy)
 
 ---
 
 ## ✨ Key Features
 
-### 🎯 **Smart Focus Tracking**
-- Detects when the user is present and studying
-- Tracks:
-  - Current focus session duration
-  - Total accumulated study time (daily)
-- Compares progress against a **dynamically-calculated recommended study duration**
+### 🎯 Smart Focus Tracking
 
-### 😴 **Intelligent Rest Mode**
-Triggered when continuous study exceeds the recommended duration.
+* Detects when the user is present
+* Measures:
+
+  * Current study session duration
+  * Total accumulated study time
+* Continuously compares time against automatically calculated recommendations
+
+### 😴 Intelligent Rest Mode
+
+Triggered when continuous study exceeds recommended duration.
 
 During Rest Mode:
-- Status LED locks to **red**
-- Environment LED is **turned off**
-- LCD displays:
-Rest: <elapsed> / <required> minutes
-Leave desk...
 
+* Status LEDs locked to **red**
+* Environment LEDs **off**
+* LCD shows:
 
-- After required rest time:
-- State changes to **Rest Finished**
-- Status LED turns **orange** until the user returns
+  * `Rest: <elapsed> / <required> m`
+  * `Leave desk...`
+* After required rest time: system enters **Rest Finished** state
 
-### 📟 **LCD Dual-Page Display**
-The LCD cycles between two pages when not in rest mode:
+  * Status LEDs turn **orange** until the user returns
+
+### 🔄 Updated LED Behavior
+
+Latest logic:
+
+* **Green** — user present & environment normal
+* **Blue** — user too close
+* **Yellow** — environment too noisy
+* **Red** — rest required
+* **Orange** — rest finished (waiting for user)
+* **No Delay** — LED color now updates instantly
+* **Invalid distance** — *LED stays off unless noise is high*
+
+### 📟 LCD Dual-Page System
+
+When not resting, the LCD alternates every 2 seconds:
 
 **Page 0 — Study Progress**
-Total: <total_minutes>m
-(<current_segment> / Rec:<recommended>)
 
+```
+Total: <minutes>
+(<current> / Rec:<recommended>)
+```
 
-**Page 1 — Environment Readings**
-Lux: <brightness>
-Noise: <raw_value>
+**Page 1 — Environment**
 
-
-### 💡 **LED Status Indicators**
-- 🟢 **Green** — user present, environment normal  
-- 🔵 **Blue** — user too close to the screen  
-- 🟡 **Yellow** — environment too noisy  
-- 🔴 **Red** — rest required  
-- 🟠 **Orange** — rest finished (waiting for user return)  
-
-LED color is preserved when the user leaves (except rest-related states).
+```
+Lux: <value>
+Noise: <value>
+```
 
 ---
 
 ## 🧠 Sensor Logic Summary
 
-| Sensor | Function | Usage |
-|--------|----------|--------|
-| **Ultrasonic (HC-SR04)** | Distance & presence | Posture, presence detection, rest logic |
-| **VEML7700** | Ambient brightness | Automatic light control, recommendation tuning |
-| **Microphone (analog)** | Noise level | Environment quality analysis & LED feedback |
-| **Time (millis)** | Study/rest tracking | Non-blocking timing system |
+| Sensor            | Purpose             | Usage                                                        |
+| ----------------- | ------------------- | ------------------------------------------------------------ |
+| HC-SR04           | Distance & presence | posture, presence, rest logic                                |
+| VEML7700          | Brightness          | environment quality, rest & study tuning, auto light control |
+| Analog microphone | Noise               | environment quality, LED feedback                            |
+| millis()          | Timing              | non-blocking session & rest tracking                         |
 
-Dynamic recommended study time and rest duration both depend on **light**, **noise**, and **distance** conditions.
+Both study and rest durations adapt dynamically to environmental conditions.
 
 ---
+
 # 🖼️ Design Documents (in `/Documents/`)
 
 All design drawings, early concept sketches, electronics documentation, and PCB design files are stored in:
@@ -122,7 +136,7 @@ The PCB layout converts the schematic into a manufacturable and compact board de
 # 🛠️ 3D Printed Shell (from `/Shell/`)
 
 The Study Assistant enclosure includes a main shell and a detachable top cover.  
-Both parts were modelled for 3D printing through *  Fusion 360* and designed to house all electronics securely.
+Both parts were modelled for 3D printing through *Fusion 360* and designed to house all electronics securely.
 
 ---
 
