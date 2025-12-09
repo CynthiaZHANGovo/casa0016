@@ -162,11 +162,11 @@ These optional decorative elements are sourced from open 3D model libraries and 
 
 The complete Arduino sketch with all functions, detailed English comments, and structured serial output is located at:
 
-/StudyAssistant/Study_Assistant_Final.ino
+/StudyAssistant
 
 
 Direct link:  
-👉 **[Study_Assistant_Final.ino](StudyAssistant/StudyAssistant.ino)**
+👉 **[Study_Assistant_Final.ino](StudyAssistant)**
 
 ---
 
@@ -180,6 +180,7 @@ Full project available at:
 # 👩‍💻 Author
 
 **Xinyi Zhang**  Cyn Zhang
+
 GitHub: https://github.com/CynthiaZHANGovo  
 UCL CASA0016
 
