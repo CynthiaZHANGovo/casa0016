@@ -1,7 +1,7 @@
 # Study Assistant
 
 The **Study Assistant** is a smart, sensor-based desktop companion designed to improve learning efficiency and promote healthier study habits.  
-By monitoring environmental and behavioral factors—such as brightness, noise, distance, and presence—it provides real-time feedback through an RGB LCD screen and LED indicators.  
+By monitoring environmental and behavioral factors—such as brightness, noise, distance, and presence, it provides real-time feedback through an RGB LCD screen and LED indicators.  
 The device encourages proper posture, ideal study intervals, and timely breaks.
 
 ---
@@ -82,11 +82,11 @@ LED color is preserved when the user leaves (except rest-related states).
 Dynamic recommended study time and rest duration both depend on **light**, **noise**, and **distance** conditions.
 
 ---
-# 🖼️ Design Documents (in `/documents/`)
+# 🖼️ Design Documents (in `/Documents/`)
 
 All design drawings, early concept sketches, electronics documentation, and PCB design files are stored in:
 
-/documents/
+/Documents/
 
 
 These materials illustrate the full development process from concept → electronic design → PCB layout.
@@ -121,25 +121,40 @@ The PCB layout converts the schematic into a manufacturable and compact board de
 
 # 🛠️ 3D Printed Shell (from `/Shell/`)
 
-The Study Assistant enclosure consists of a main shell and a detachable cover.  
-GitHub does not directly preview STL files, so placeholders are included below.  
-Replace them with PNG/JPG screenshots if desired.
+The Study Assistant enclosure includes a main shell and a detachable top cover.  
+Both parts were modelled for 3D printing through *  Fusion 360* and designed to house all electronics securely.
 
-### Shell (Exterior)
+---
 
-![Shell Front Placeholder](Shell/Shell_Exterior.png)
+### 🟦 Shell (Main Body)
 
-STL download:  
+![Shell Front Placeholder](Shell/box.png)
+
+**STL download:**  
 https://github.com/CynthiaZHANGovo/casa0016/blob/main/Shell/Studybox2.0.stl
 
 ---
 
-### Shell Cover
+### 🟧 Shell Cover
 
-![Shell Cover Placeholder](Shell/Shell_Cover.png)
+![Shell Cover Placeholder](Shell/boxCover.png)
 
-STL download:  
+**STL download:**  
 https://github.com/CynthiaZHANGovo/casa0016/blob/main/Shell/Study_Box_Cover.stl
+
+---
+
+### 🎃 Additional Decorative Models (Open-source Resources)
+
+These optional decorative elements are sourced from open 3D model libraries and used for aesthetic enhancement:
+
+- **Campfire decoration** — [open-source model](https://makerworld.com.cn/zh/models/672740-gou-huo-deng-mi-ni-ledgou-huo-tai-deng?from=search#profileId-617935)
+- **Lamp shade decoration** — [open-source model](https://makerworld.com.cn/zh/models/1686858-fen-wei-deng?from=search#profileId-1854094)
+- **Pumpkin lantern decoration** — [open-source model](https://makerworld.com.cn/zh/models/1678338-nan-gua-deng-zhao-zhi-xu-1xiao-shi-da-yin?from=search#profileId-1843353)
+
+
+---
+
 
 ---
 
@@ -164,7 +179,7 @@ Full project available at:
 
 # 👩‍💻 Author
 
-**Xinyi Zhang**  
+**Xinyi Zhang**  Cyn Zhang
 GitHub: https://github.com/CynthiaZHANGovo  
 UCL CASA0016
 
