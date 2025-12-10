@@ -184,6 +184,14 @@ Direct link:
 
 ---
 
+Videos:
+Different modes:
+https://youtu.be/XXJL6YK80Yg
+
+Back-up:
+https://www.youtube.com/watch?v=R-oBgMGgS7g
+
+
 # 📂 Repository
 
 Full project available at:  
