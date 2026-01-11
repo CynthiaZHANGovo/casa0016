@@ -169,6 +169,42 @@ These optional decorative elements are sourced from open 3D model libraries and 
 
 ---
 
+## 🎬 Demo Videos
+
+This section demonstrates the Study Assistant in real-world use, including both general functionality and dynamic mode switching behavior.
+
+---
+
+### ▶️ Demo 1 — Full Functionality Overview
+
+Demonstrates the **overall workflow and core features** of the Study Assistant, including:
+
+* Presence detection
+* Study time tracking
+* Environmental monitoring
+* Noise warning
+* Distance warning
+* LCD dual-page display
+* LED status feedback
+
+📺 **Watch video:**
+[https://www.youtube.com/watch?v=R-oBgMGgS7g](https://www.youtube.com/watch?v=R-oBgMGgS7g)
+
+[![Full Function Demo](https://img.youtube.com/vi/R-oBgMGgS7g/0.jpg)](https://www.youtube.com/watch?v=R-oBgMGgS7g)
+
+
+### ▶️ Demo 2 — Mode Switching & Status Transitions
+
+Focuses on **different system modes and real-time transitions**, including:
+
+* Normal study mode
+* Rest mode activation
+* Rest finished state
+
+📺 **Watch video:**
+[https://youtu.be/XXJL6YK80Yg](https://youtu.be/XXJL6YK80Yg)
+
+[![Mode Switching Demo](https://img.youtube.com/vi/XXJL6YK80Yg/0.jpg)](https://youtu.be/XXJL6YK80Yg)
 
 ---
 
